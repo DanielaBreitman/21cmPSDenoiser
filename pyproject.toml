@@ -1,0 +1,142 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "src/psdenoiser/_version.py"
+parentdir_prefix_version = "psdenoiser-"
+fallback_version  = "0.0.0"
+
+[project]
+name = "21cmPSDenoiser"
+description = "Tools for post-processing and computing summaries of 21cmFAST simulations"
+readme = "README.rst"
+authors = [
+    { name = "Daniela Breitman", email = "daniela.breitman@sns.it" },
+]
+requires-python = ">=3.11"
+license = {text="MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+dependencies = [
+    "torch>=2.0.1",
+    "astropy>=7.0.1",
+    "attrs>=25.3.0",
+    "numpy>=2",
+    "powerbox>=0.8.2",
+    "scipy>=1.15.2",
+]
+dynamic = ['version']
+
+[project.optional-dependencies]
+tests = [
+    "coverage",
+    "pytest-cov",
+    "pre-commit",
+    "pytest",
+    "sphinx",
+]
+dev = [
+    "21cmPSDenoiser[tests,21cmfast]"
+]
+
+
+[project.urls]
+Repository = "https://github.com/DanielaBreitman/21cmPSDenoiser"
+Issues = "https://github.com/DanielaBreitman/21cmPSDenoiser/issues"
+Changelog = "https://github.com/DanielaBreitman/21cmPSDenoiser/releases"
+
+[tool.pytest.ini_options]
+addopts = "--durations=25 --cov psdenoiser --cov-config=.coveragerc --cov-report xml:./coverage.xml "
+norecursedirs = [
+    "dist",
+    "build",
+]
+testpaths = "tests"
+
+
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+extend-select = [
+  "UP",   # pyupgrade
+  "E",    # pycodestyle
+  "W",    # pycodestyle warning
+  "F",    # pyflakes
+  "C90",  # mccabe complexity
+  "I",    # isort
+  "N",    # pep8-naming
+  "D",    # docstyle
+  # "ANN"   # type annotations
+  "B",    # bugbear
+  "A",    # builtins
+  "C4",   # comprehensions
+  "DTZ",  # datetime
+  "FA",   # future annotations
+  "PIE",  # flake8-pie
+  "T",    # print statements
+  "PT",   # pytest-style
+  "Q",    # quotes
+  "SIM",  # simplify
+  "PTH",  # use Pathlib
+  "ERA",  # kill commented code
+  "NPY",  # numpy-specific rules
+  "PERF", # performance
+  # "FURB", # refurb
+  "RUF",  # ruff-specific rules
+  "RET",  # return statements
+  "RSE",  # exception raises
+  "TRY201", # verbose raise
+]
+
+ignore = [
+    "D101",  # Missing docstring in public class -- my docstrings are in the __init__ which seems to fail this ?
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "D",  # ignore missing docstring in tests
+    "DTZ",   # ignore datetime in tests
+    "T",     # print statements
+]
+"docs/conf.py" = [
+    "A",  # conf.py can shadow builtins
+    "ERA",
+    "DTZ",
+]
+"docs/tutorials/*.ipynb" = [
+    "T201", # print statements
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = 'numpy'
+property-decorators = [
+    "property",
+    "functools.cached_property",
+    "pytest.fixture"
+]
+[tool.ruff.lint.mccabe]
+max-complexity = 21
+
+[dependency-groups]
+
+dev = [
+    "coverage>=7.8.2",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "sphinx>=8.2.3",
+]
