@@ -202,9 +202,11 @@ class Denoiser:
         DenoiserOutput
             See the class definition for more information.
         """
-        mask = np.squeeze(
-            np.mean(ps_realisations.value, axis=(-1, -2)) > self.csts.min_PS_mean
-        )
+        if len(ps_realisations.shape) == 2:
+            ps_realisations = ps_realisations[np.newaxis, ...]
+        
+        mask = np.mean(ps_realisations.value, axis=(-1, -2)) > self.csts.min_PS_mean
+    
         if np.sum(mask) > 0:
             normed_ps_realisations, kperp, kpar = DenoiserInput().format_input(
                 ps_realisations[mask], kperp, kpar

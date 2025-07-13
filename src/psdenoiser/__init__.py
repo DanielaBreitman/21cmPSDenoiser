@@ -13,7 +13,7 @@ __all__ = [
     "get_score_fn",
     "model_utils",
     "reverse_transform",
-    "subVPSDE",
+    "SubVPSDE",
     "transform",
 ]
 from . import model_utils
@@ -25,5 +25,5 @@ from .model_utils import get_score_fn
 from .outputs import DenoiserOutput
 from .properties import denoiser_csts
 from .sample_pytorch import GetODESampler
-from .sde import VESDE, VPSDE, subVPSDE
+from .sde import VESDE, VPSDE, SubVPSDE
 from .utils import reverse_transform, transform
