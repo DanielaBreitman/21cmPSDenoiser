@@ -1,4 +1,4 @@
-"""Based on Yang Song's score_sde_pytorch/blob/main/sde_lib.py"""
+"""Based on Yang Song's score_sde_pytorch/blob/main/sde_lib.py ."""
 
 import abc
 
@@ -22,23 +22,23 @@ class SDE(abc.ABC):
     @property
     @abc.abstractmethod
     def T(self):
-        """End time of the SDE."""
+        r"""End time of the SDE."""
 
     @abc.abstractmethod
     def sde(self, x, t):
-        pass
+        r"""Drift and diffusion functions for the forward SDE."""
 
     @abc.abstractmethod
     def marginal_prob(self, x, t):
-        """Parameters to determine the marginal distribution of the SDE, $p_t(x)$."""
+        r"""Parameters to determine the marginal distribution of the SDE, $p_t(x)$."""
 
     @abc.abstractmethod
     def prior_sampling(self, shape):
-        """Generate one sample from the prior distribution, $p_T(x)$."""
+        r"""Generate one sample from the prior distribution, $p_T(x)$."""
 
     @abc.abstractmethod
     def prior_logp(self, z):
-        """Compute log-density of the prior distribution.
+        r"""Compute log-density of the prior distribution.
 
         Useful for computing the log-likelihood via probability flow ODE.
 
@@ -90,19 +90,25 @@ class SDE(abc.ABC):
         sde_fn = self.sde
         discretize_fn = self.discretize
 
-        # Build the class for reverse-time SDE.
         class RSDE(self.__class__):
             def __init__(self):
+                r"""Class for the reverse-time SDE."""
                 self.N = N
                 self.probability_flow = probability_flow
 
             @property
             def T(self):
+                r"""End time of the SDE."""
                 return T
 
-            def sde(self, x, t, x_cdn=None, cdn=None):
-                r"""Drift and diffusion functions for the reverse SDE/ODE.
-                """
+            def sde(
+                self,
+                x: torch.Tensor,
+                t: torch.Tensor,
+                x_cdn: torch.Tensor | None = None,
+                cdn: torch.Tensor | None = None,
+            ) -> tuple[torch.Tensor, torch.Tensor]:
+                r"""Drift and diffusion functions for the reverse SDE/ODE."""
                 drift, diffusion = sde_fn(x, t)
                 score = score_fn(x, t, x_cdn=x_cdn, cdn=cdn)
                 drift = drift - diffusion[:, None, None, None] ** 2 * score * (
@@ -112,9 +118,14 @@ class SDE(abc.ABC):
                 diffusion = 0.0 if self.probability_flow else diffusion
                 return drift, diffusion
 
-            def discretize(self, x, t, x_cdn=None, cdn=None):
-                """Discretized iteration rules for the reverse diffusion sampler.
-                """
+            def discretize(
+                self,
+                x: torch.Tensor,
+                t: torch.Tensor,
+                x_cdn: torch.Tensor | None = None,
+                cdn: torch.Tensor | None = None,
+            ):
+                r"""Discretized iteration rules for the reverse diffusion sampler."""
                 f, G = discretize_fn(x, t)
                 rev_f = f - G[:, None, None, None] ** 2 * score_fn(
                     x, t, x_cdn=x_cdn, cdn=cdn
@@ -126,7 +137,7 @@ class SDE(abc.ABC):
 
 
 class VPSDE(SDE):
-    def __init__(self, beta_min=0.1, beta_max=20, n=1000):
+    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, n: float = 1000):
         r"""Construct a Variance Preserving SDE.
 
         Args:
@@ -146,15 +157,18 @@ class VPSDE(SDE):
 
     @property
     def T(self):
+        r"""End time of the SDE."""
         return 1
 
     def sde(self, x, t):
+        r"""Drift and diffusion functions for the forward SDE."""
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
         diffusion = torch.sqrt(beta_t)
         return drift, diffusion
 
     def marginal_prob(self, x, t):
+        r"""Parameters to determine the marginal distribution of the SDE, $p_t(x)$."""
         log_mean_coeff = (
             -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
         )
@@ -163,9 +177,11 @@ class VPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
+        r"""Generate one sample from the prior distribution, $p_T(x)$."""
         return torch.randn(*shape)
 
     def prior_logp(self, z):
+        r"""Compute log-density of the prior distribution."""
         shape = z.shape
         N = np.prod(shape[1:])
         return -N / 2.0 * np.log(2 * np.pi) - torch.sum(z**2, dim=(1, 2, 3)) / 2.0
@@ -182,13 +198,17 @@ class VPSDE(SDE):
 
 
 class SubVPSDE(SDE):
-    def __init__(self, beta_min=0.1, beta_max=20, n=1000):
+    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, n: int = 1000):
         r"""Construct the sub-VP SDE that excels at likelihoods.
 
-        Args:
-          beta_min: value of beta(0)
-          beta_max: value of beta(1)
-          N: number of discretization steps
+        Parameters
+        ----------
+            beta_min: float
+                Value of beta(0).
+            beta_max: float
+                Value of beta(1).
+            n: int
+                Number of discretization steps.
         """
         super().__init__(n)
         self.beta_0 = beta_min
@@ -197,9 +217,11 @@ class SubVPSDE(SDE):
 
     @property
     def T(self):
+        r"""End time of the SDE."""
         return 1
 
     def sde(self, x, t):
+        r"""Drift and diffusion functions for the forward SDE."""
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
         discount = 1.0 - torch.exp(
@@ -209,6 +231,7 @@ class SubVPSDE(SDE):
         return drift, diffusion
 
     def marginal_prob(self, x, t):
+        r"""Parameters to determine the marginal distribution of the SDE, $p_t(x)$."""
         log_mean_coeff = (
             -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
         )
@@ -217,22 +240,28 @@ class SubVPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
+        r"""Generate one sample from the prior distribution, $p_T(x)$."""
         return torch.randn(*shape)
 
     def prior_logp(self, z):
+        r"""Compute log-density of the prior distribution."""
         shape = z.shape
         N = np.prod(shape[1:])
         return -N / 2.0 * np.log(2 * np.pi) - torch.sum(z**2, dim=(1, 2, 3)) / 2.0
 
 
 class VESDE(SDE):
-    def __init__(self, sigma_min=0.01, sigma_max=50, n=1000):
+    def __init__(self, sigma_min: float = 0.01, sigma_max: float = 50, n: float = 1000):
         r"""Construct a Variance Exploding SDE.
 
-        Args:
-          sigma_min: smallest sigma.
-          sigma_max: largest sigma.
-          N: number of discretization steps
+        Parameters
+        ----------
+            sigma_min: float
+                Smallest sigma, default is 0.01.
+            sigma_max: float
+                Largest sigma, default is 50.
+            n: int
+                Number of discretization steps, default is 1000.
         """
         super().__init__(n)
         self.sigma_min = sigma_min
@@ -244,9 +273,11 @@ class VESDE(SDE):
 
     @property
     def T(self):
+        r"""End time of the SDE."""
         return 1
 
     def sde(self, x, t):
+        r"""Drift and diffusion functions for the forward SDE."""
         sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         drift = torch.zeros_like(x)
         diffusion = sigma * torch.sqrt(
@@ -257,14 +288,17 @@ class VESDE(SDE):
         return drift, diffusion
 
     def marginal_prob(self, x, t):
+        r"""Parameters to determine the marginal distribution of the SDE, $p_t(x)$."""
         std = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         mean = x
         return mean, std
 
     def prior_sampling(self, shape):
+        r"""Generate one sample from the prior distribution, $p_T(x)$."""
         return torch.randn(*shape) * self.sigma_max
 
     def prior_logp(self, z):
+        r"""Compute log-density of the prior distribution."""
         shape = z.shape
         N = np.prod(shape[1:])
         return -N / 2.0 * np.log(2 * np.pi * self.sigma_max**2) - torch.sum(
