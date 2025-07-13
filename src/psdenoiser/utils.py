@@ -1,59 +1,80 @@
 import torch
-import numpy as np
-from pathlib import Path
-import logging
-
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def extract(a, t, x_shape):
+def extract(a: torch.Tensor, t: torch.Tensor, x_shape: tuple) -> torch.Tensor:
+    r"""Extract the value of a tensor `a` at time `t` for a batch with shape `x_shape`.
+
+    Parameters
+    ----------
+    a : torch.Tensor
+        The tensor from which to extract values.
+    t : torch.Tensor
+        The tensor containing the time steps at which to extract values.
+    x_shape : tuple
+        The shape of the data for which to extract values.
+
+    Returns
+    -------
+      torch.Tensor
+        A tensor containing the extracted values,
+        reshaped to match the batch size of `t`.
+    """
     batch_size = t.shape[0]
     out = a.cpu().gather(-1, t.cpu())
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
 
-def transform(x, scale, bias):
+
+def transform(x: torch.Tensor, scale: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+    r"""Transform input x to be in [-1, 1] by first taking log10.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        The input tensor to be transformed.
+    scale : torch.Tensor
+        The scale factor to be applied.
+    bias : torch.Tensor
+        The bias to be applied.
+
+    Returns
+    -------
+    torch.Tensor
+        The transformed tensor in the range [-1, 1].
+    """
     d = torch.log10(x)
     unit = (d - bias) / scale
-    y =  unit * 2 - 1 # scale to [-1, 1]
-    return y
+    return unit * 2 - 1  # scale to [-1, 1]
 
-def reverse_transform(y, scale, bias):
+
+def reverse_transform(
+    y: torch.Tensor, scale: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
+    r"""Reverse the transformation from [-1, 1] to the original scale.
+
+    Parameters
+    ----------
+    y : torch.Tensor
+        The input tensor in the range [-1, 1].
+    scale : torch.Tensor
+        The scale factor used in the original transformation.
+    bias : torch.Tensor
+        The bias used in the original transformation.
+
+    Returns
+    -------
+    torch.Tensor
+        The tensor transformed back to the original scale.
+    """
     unit = (y + 1) / 2
     d = unit * scale + bias
     return 10**d
 
+
 def to_flattened_numpy(x):
-  """Flatten a torch tensor `x` and convert it to numpy."""
-  return x.detach().cpu().numpy().reshape((-1,))
+    """Flatten a torch tensor `x` and convert it to numpy."""
+    return x.detach().cpu().numpy().reshape((-1,))
 
 
 def from_flattened_numpy(x, shape):
-  """Form a torch tensor with the given `shape` from a flattened numpy array `x`."""
-  return torch.from_numpy(x.reshape(shape))
-
-
-def restore_checkpoint(ckpt_dir, state, device):
-  ckpt_path = Path(ckpt_dir)
-  if not ckpt_path.exists():
-    ckpt_path.mkdir(exist_ok = True)
-    logging.warning(f"No checkpoint found at {ckpt_dir}. "
-                    f"Returned the same state as input")
-    return state
-  else:
-    loaded_state = torch.load(ckpt_dir, map_location=device)
-    state['optimizer'].load_state_dict(loaded_state['optimizer'])
-    state['model'].load_state_dict(loaded_state['model'], strict=False)
-    state['ema'].load_state_dict(loaded_state['ema'])
-    state['step'] = loaded_state['step']
-    return state
-
-
-def save_checkpoint(ckpt_dir, state):
-  saved_state = {
-    'optimizer': state['optimizer'].state_dict(),
-    'model': state['model'].state_dict(),
-    'ema': state['ema'].state_dict(),
-    'step': state['step']
-  }
-  torch.save(saved_state, ckpt_dir)
-
+    """Form a torch tensor with the given `shape` from a flattened numpy array `x`."""
+    return torch.from_numpy(x.reshape(shape))

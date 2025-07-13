@@ -30,6 +30,7 @@ classifiers = [
 
 dependencies = [
     "torch>=2.0.1",
+    "tuesday-eor>=2.3.0",
     "astropy>=7.0.1",
     "attrs>=25.3.0",
     "numpy>=2",
@@ -104,6 +105,8 @@ extend-select = [
 
 ignore = [
     "D101",  # Missing docstring in public class -- my docstrings are in the __init__ which seems to fail this ?
+    "N806",
+    "N802"
 ]
 
 [tool.ruff.lint.per-file-ignores]

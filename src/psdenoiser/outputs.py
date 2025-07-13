@@ -1,26 +1,27 @@
 """Module to organise the denoiser output."""
+
 from __future__ import annotations
 
 import dataclasses as dc
+from collections.abc import Generator
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
-from typing import Generator
-from scipy.interpolate import RegularGridInterpolator
+
+import astropy.units as un
 import numpy as np
 
-from properties import denoiser_csts
-    
+from psdenoiser.properties import denoiser_csts
+
 
 @dataclass(frozen=True)
 class DenoiserOutput:
-    """A simple class that makes it easier to access the corrected denoiser output."""
-    samples_delta: np.ndarray
-    median_delta: np.ndarray
-    std_delta: np.ndarray
-    kperp: np.ndarray
-    kpar: np.ndarray
-    global_xHI: np.ndarray
+    """A simple class that makes it easier to access the denoiser output."""
+
+    deltasq_samples: un.Quantity
+    deltasq_median: un.Quantity
+    deltasq_std: un.Quantity
+    kperp: un.Quantity
+    kpar: un.Quantity
 
     csts = denoiser_csts
 
@@ -37,15 +38,17 @@ class DenoiserOutput:
     def __getitem__(self, key: str) -> np.ndarray:
         """Allow access to attributes as items."""
         return getattr(self, key)
-    
+
     def squeeze(self):
         """Return a new EmulatorOutput with all dimensions of length 1 removed."""
         return DenoiserOutput(**{k: np.squeeze(v) for k, v in self.items()})
-    
+
     @property
     def denoiser_median_on_test_mean(self):
         """Return the denoiser median error on the test set."""
-        return self.csts.denoiser_median_on_test_mean_percent/100. * self.median_delta
+        return (
+            self.csts.denoiser_median_on_test_mean_percent / 100.0 * self.deltasq_median
+        )
 
     def write(
         self,
