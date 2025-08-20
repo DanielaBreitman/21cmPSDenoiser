@@ -38,6 +38,8 @@ class DenoiserInput:
                 "Interpolation of input kperp and kpar bins is not supported yet."
             )
 
+        if len(ps_realisations.shape) == 2:
+            ps_realisations = ps_realisations[np.newaxis, ...]
         if ps_realisations.shape[1] != len(kperp):
             raise ValueError(
                 "You supplied the wrong kperp bins: %s kperp bins in PS vs %s kperp bins in kperp array supplied."

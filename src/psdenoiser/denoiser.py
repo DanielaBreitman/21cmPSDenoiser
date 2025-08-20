@@ -32,25 +32,11 @@ class Denoiser:
     device : torch.device, optional
         The device on which to store the model.
         Default will use GPU is available, otherwise CPU.
-    nsamples : int, optional
-        Number of diffusion samples, default is 200.
-    sampler_denoise : bool, optional
-        If `True`, add one-step denoising to final samples, default is `True`.
-    sampler_rtol : float, optional
-        The relative tolerance level of the probability flow ODE solver,
-        default is 1e-5.
-    sampler_atol : float, optional
-        The absolute tolerance level of the probability flow ODE solver,
-        default is 1e-5.
     """
 
     def __init__(
         self,
         device: torch.device | None = None,
-        nsamples: int = 200,
-        sampler_denoise: bool = True,
-        sampler_rtol: float = 1e-5,
-        sampler_atol: float = 1e-5,
     ):
         if device is None:
             device = (
@@ -77,17 +63,7 @@ class Denoiser:
         model.to(device)
         model.eval()
         self.model = model
-
-        self.nsamples = nsamples
-        sde = VPSDE(beta_min=0.1, beta_max=20.0)  # Like Ho+20
-        self.sample = GetODESampler(
-            sde,
-            (nsamples, 1, len(self.csts.kperp), len(self.csts.kpar)),
-            device=device,
-            denoise=sampler_denoise,
-            rtol=sampler_rtol,
-            atol=sampler_atol,
-        ).get_ode_sampler()
+        self.device = device
 
     def __getattr__(self, name: str) -> Any:
         """Allow access to denoiser properties directly from the denoiser object."""
@@ -128,7 +104,9 @@ class Denoiser:
 
     @torch.no_grad()
     def get_pred(
-        self, noisy_samples: np.ndarray, progress: bool = True
+        self, 
+        noisy_samples: np.ndarray, 
+        progress: bool = True,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         r"""Get the mean 21-cm PS for multiple noisy PS realisations.
 
@@ -178,6 +156,10 @@ class Denoiser:
         ps_realisations: un.Quantity,
         kperp: un.Quantity,
         kpar: un.Quantity,
+        nsamples: int = 200,
+        batch_size=None,
+        sampler_rtol: float = 1e-5,
+        sampler_atol: float = 1e-5,
     ) -> DenoiserOutput:
         r"""Call 21cmPSDenoiser and predict the mean 21-cm PS for the given PS samples.
 
@@ -192,9 +174,18 @@ class Denoiser:
             kperp bin center values of the cylindrical PS
         kpar : un.Quantity
             kpar bin center values of the cylindrical PS
-        N : int, optional
-            Number of diffusion samples to take the median over to obtain the
-            denoised result, default is 250.
+        nsamples : int, optional
+            Number of diffusion samples, default is 200.
+        batch_size : int, optional
+            Batch size, default is ps_realisations.shape[0], 
+            so there is one batch per parameter (per nsamples). 
+            If nsamples is high, consider a lower batch_size e.g. batch_size = 1.
+        sampler_rtol : float, optional
+            The relative tolerance level of the probability flow ODE solver,
+            default is 1e-5.
+        sampler_atol : float, optional
+            The absolute tolerance level of the probability flow ODE solver,
+            default is 1e-5.
 
 
         Returns
@@ -204,15 +195,28 @@ class Denoiser:
         """
         if len(ps_realisations.shape) == 2:
             ps_realisations = ps_realisations[np.newaxis, ...]
-
         mask = np.mean(ps_realisations.value, axis=(-1, -2)) > self.csts.min_PS_mean
-
+        self.nsamples = nsamples
+        if batch_size is None:
+            batch_size = ps_realisations.shape[0]
         if np.sum(mask) > 0:
             normed_ps_realisations, kperp, kpar = DenoiserInput().format_input(
                 ps_realisations[mask], kperp, kpar
             )
             if np.sum(np.isnan(normed_ps_realisations)) > 0:
                 raise ValueError("There are NaNs in the normalised input PS!!")
+        
+            self.sample = GetODESampler(VPSDE(beta_min=0.1, beta_max=20.), 
+                                (batch_size,nsamples, len(self.csts.kperp), len(self.csts.kpar)), 
+                                device=self.device,
+                                denoise=True,
+                                rtol=sampler_rtol, 
+                                atol=sampler_atol).get_ode_sampler()
+            normed_ps_realisations = normed_ps_realisations.reshape((normed_ps_realisations.shape[0] // batch_size, 
+                                                                     batch_size, 
+                                                                     len(self.csts.kperp), 
+                                                                     len(self.csts.kpar)))
+                
             samples_pred, med_pred, std_pred = self.get_pred(normed_ps_realisations)
             if np.sum(mask) < len(mask):
                 warnings.warn(

@@ -82,6 +82,7 @@ class GetODESampler:
         """
         self.sde = sde
         self.shape = shape
+        self.single_batch_shape = (int(shape[0]*shape[1]), 1, shape[2], shape[3])
         self.inverse_scaler = inverse_scaler
         self.denoise = denoise
         self.rtol = rtol
@@ -134,25 +135,25 @@ class GetODESampler:
             # Initial sample
             if z is None:
                 # If not provided, sample from the prior distibution of the SDE.
-                x = self.sde.prior_sampling(self.shape).to(self.device)
+                x = self.sde.prior_sampling(self.single_batch_shape).to(self.device)
             else:
                 x = z.to(self.device)
             if x_cdn is not None:
                 x_cdn = (
-                    x_cdn.repeat((self.shape[0],) + (1,) * len(self.shape[1:]))
-                    .reshape(self.shape)
+                    x_cdn.repeat((self.shape[1],1,1,1,))
+                    .reshape(self.single_batch_shape)
                     .to(self.device)
                 )
 
             def ode_func(t, x):
                 x = (
-                    from_flattened_numpy(x, self.shape)
+                    from_flattened_numpy(x, self.single_batch_shape)
                     .to(self.device)
                     .type(torch.float32)
                 )
-                vec_t = torch.ones(self.shape[0], device=x.device) * t
+                vec_t = torch.ones(self.single_batch_shape[0], device=x.device) * t
                 drift = self.drift_fn(
-                    model, x, vec_t, x_cdn=x_cdn, cdn=cdn if cdn is not None else None
+                    model, x, vec_t, x_cdn=x_cdn, cdn=cdn
                 )
                 x.cpu()
                 vec_t.cpu()
@@ -171,7 +172,7 @@ class GetODESampler:
             nfe = solution.nfev
             sln = (
                 torch.tensor(solution.y[:, -1])
-                .reshape(self.shape)
+                .reshape(self.single_batch_shape)
                 .to(self.device)
                 .type(torch.float32)
             )
@@ -180,6 +181,7 @@ class GetODESampler:
                 sln = self.denoise_update_fn(model, sln, x_cdn=x_cdn, cdn=cdn)
             if self.inverse_scaler is not None:
                 sln = self.inverse_scaler(sln)
+            sln = sln.reshape(self.shape)
 
             if x_cdn is not None:
                 x_cdn.cpu()
